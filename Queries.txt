@@ -1,0 +1,53 @@
+// Selecting all notebooks that customers have viewed or added to their wish lists
+MATCH (:Customer)-[:ADDED_TO_WISH_LIST|:VIEWED]->(notebook:Product)-[:IS_IN]->(:Category {title: 'Notebooks'})
+RETURN notebook;
+
+
+
+// We can add this list of notebooks to promotional offers(with few modification)
+CREATE(offer:PromotionalOffer {type: 'discount_offer', content: 'Notebooks discount offer...'})
+WITH offer
+MATCH (:Customer)-[:ADDED_TO_WISH_LIST|:VIEWED]->(notebook:Product)-[:IS_IN]->(:Category {title: 'Notebooks'})
+MERGE(offer)-[:USED_TO_PROMOTE]->(notebook);
+
+
+
+// Track the above changes using below query
+MATCH (offer:PromotionalOffer)-[:USED_TO_PROMOTE]->(product:Product)
+RETURN offer, product;
+
+
+
+// linking this products list with their customers accordingly
+MATCH (offer:PromotionalOffer {type: 'discount_offer'})-[:USED_TO_PROMOTE]->(product:Product)<-[:ADDED_TO_WISH_LIST|:VIEWED]-(customer:Customer)
+RETURN offer, product, customer;
+
+
+
+// If a customer shows interest in a certain product but doesn’t buy it, we can create a promotional offer that contains alternative products:
+MATCH (alex:Customer {name: 'Alex McGyver'})
+MATCH (free_product:Product)
+WHERE NOT ((alex)-->(free_product))
+MATCH (product:Product)
+WHERE ((alex)-->(product))
+
+MATCH (free_product)-[:IS_IN]->()<-[:IS_IN]-(product)
+WHERE ((product.price - product.price * 0.20) >= free_product.price <= (product.price + product.price * 0.20))
+
+CREATE(offer:PromotionalOffer {type: 'personal_replacement_offer', content: 'Personal replacement offer for ' + alex.name})
+WITH offer, free_product, alex
+MERGE(offer)-[rel:USED_TO_PROMOTE {email: alex.email}]->(free_product)
+RETURN offer, free_product, rel;
+
+
+# For Recommendation system:
+// a look at all customers and the products they’ve viewed, added to their wish lists, and bought:
+MATCH (customer:Customer)-->(product:Product)
+RETURN customer, product;
+
+
+// Now we will recommend a specific customer the products in which other customers(which have similar interest as the specific customer) are interested:
+MATCH (:Customer {name: 'Alex McGyver'})-->(product:Product)<--(customer:Customer)
+MATCH (customer)-->(customer_product:Product)
+WHERE (customer_product <> product)
+RETURN customer, customer_product;
